@@ -4,6 +4,7 @@ docker compose up -d - запуск Docker
 docker compose up --build - сбилдить приложение
 docker compose down - остановить
 
-
-
+С БД общаться через gorm
+Схема БД
+![alt text](image-1.png)
 

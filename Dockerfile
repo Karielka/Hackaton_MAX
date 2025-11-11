@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Кладём бинарь
 COPY --from=builder /out/app /app/app
-
+COPY --from=builder /src/config /app/config
 # Непривилегированный пользователь уже задан (nonroot)
 USER nonroot:nonroot
 
