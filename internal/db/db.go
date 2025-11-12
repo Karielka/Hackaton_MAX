@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -10,11 +11,20 @@ import (
 	glogger "gorm.io/gorm/logger"
 )
 
-// Connect открывает соединение к Postgres по DATABASE_URL
 func Connect() *gorm.DB {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		log.Fatal("env DATABASE_URL is required, e.g. postgres://user:pass@host:5432/db?sslmode=disable")
+		host := getenv("POSTGRES_HOST", "localhost") // в docker-compose это может быть "db"
+		port := getenv("POSTGRES_PORT", "5433")
+		user := getenv("POSTGRES_USER", "app")
+		pass := getenv("POSTGRES_PASSWORD", "app")
+		name := getenv("POSTGRES_DB", "app")
+		ssl  := getenv("POSTGRES_SSLMODE", "disable")
+
+		dsn = fmt.Sprintf(
+			"postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			user, pass, host, port, name, ssl,
+		)
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
@@ -35,4 +45,11 @@ func Connect() *gorm.DB {
 	sqlDB.SetConnMaxLifetime(45 * time.Minute)
 
 	return db
+}
+
+func getenv(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
 }

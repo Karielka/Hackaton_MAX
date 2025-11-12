@@ -2,52 +2,63 @@ package models
 
 import "gorm.io/gorm"
 
-// Базовые сущности под твои экраны (минимальные поля для старта)
-
-type University struct {
+// Институт
+type Institute struct {
 	ID   uint   `gorm:"primaryKey"`
-	Name string `gorm:"index;not null"`
+	Name string `gorm:"uniqueIndex;not null"`
 }
 
+// Факультет N-1 Институт
 type Faculty struct {
-	ID           uint   `gorm:"primaryKey"`
-	Name         string `gorm:"index;not null"`
-	UniversityID uint
+	ID          uint   `gorm:"primaryKey"`
+	Name        string `gorm:"uniqueIndex;not null"`
+	InstituteID uint
+	Institute   Institute `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 }
 
-type Teacher struct {
+// Кафедра N-1 Факультет
+type Department struct {
 	ID        uint   `gorm:"primaryKey"`
-	FullName  string `gorm:"index;not null"`
-	Email     string
+	Name      string `gorm:"uniqueIndex;not null"`
 	FacultyID uint
-	Subject   string // предмет/кафедра
-	// расписание можно хранить в JSON в отдельной таблице — пока опускаем
+	Faculty   Faculty `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+}
+
+// Преподаватель N-1 Кафедра
+type Teacher struct {
+	ID           uint   `gorm:"primaryKey"`
+	FullName     string `gorm:"index;not null"` // ФИО
+	Email        string `gorm:"index"`
+	Subject      string `gorm:"index"`          // предмет (опционально)
+	DepartmentID uint
+	Department   Department `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	Schedule     string     `gorm:"type:text"`  // заглушка; позже вынесем в отдельную сущность
 }
 
 type DeanOffice struct {
-	ID         uint   `gorm:"primaryKey"`
-	FacultyID  uint   `gorm:"uniqueIndex"`
-	Schedule   string // текст/линк – заглушка
-	DocsLink   string // ссылка на документы
-	Contacts   string // email/телефон
+	ID        uint   `gorm:"primaryKey"`
+	FacultyID uint   `gorm:"uniqueIndex"`
+	Schedule  string
+	DocsLink  string
+	Contacts  string
 }
 
 type Campus struct {
 	ID           uint   `gorm:"primaryKey"`
-	UniversityID uint
-	ShortName    string `gorm:"index"`
+	ShortName    string `gorm:"index;not null"`
 	Address      string
 	ImageURL     string
+	InstituteID  uint // если нужно привязать корпуса к институту
 }
 
-type Place struct { // столовая/буфет/копирка и т.д.
+type Place struct {
 	ID       uint   `gorm:"primaryKey"`
 	CampusID uint   `gorm:"index"`
-	Type     string `gorm:"index"` // "canteen" | "buffet" | "copy"
+	Type     string `gorm:"index"` // "canteen" | "buffet" | "copy"...
 	Name     string
 	Location string
 	Schedule string
-	MenuURL  string // ссылка на меню на сегодня (если есть)
+	MenuURL  string
 }
 
 type FAQ struct {
@@ -56,11 +67,11 @@ type FAQ struct {
 	Answer   string
 }
 
-// AutoMigrate выполняем из main
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
-		&University{},
+		&Institute{},
 		&Faculty{},
+		&Department{},
 		&Teacher{},
 		&DeanOffice{},
 		&Campus{},

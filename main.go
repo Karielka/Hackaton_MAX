@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	maxbot "github.com/max-messenger/max-bot-api-client-go"
 	"github.com/max-messenger/max-bot-api-client-go/configservice"
@@ -82,38 +81,43 @@ func main() {
 	}
 }
 
-// /start, /menu, любое сообщение — показываем меню
+
+// /start, /menu — показываем меню, ИНАЧЕ — пробуем обработать текст сценарием поиска
 func handleMessage(ctx context.Context, api *maxbot.Api, db *gorm.DB, upd *schemes.MessageCreatedUpdate) {
+	// команды
+	switch upd.GetCommand() {
+	case "/start", "/menu":
+		msg := maxbot.NewMessage()
+		if upd.Message.Recipient.ChatId != 0 { msg.SetChat(upd.Message.Recipient.ChatId) } else { msg.SetUser(upd.Message.Sender.UserId) }
+		msg.SetText(services.WelcomeText()).AddKeyboard(services.MenuKeyboard(api))
+		if _, err := api.Messages.Send(ctx, msg); err != nil { log.Err(err).Msg("send menu") }
+		return
+	}
+
+	// делегируем в сервис поиска
+	sc := services.Ctx{API: api, DB: db}
+	if handled, err := services.OnMessage(ctx, sc, upd); err != nil {
+		log.Err(err).Msg("services.OnMessage")
+		return
+	} else if handled {
+		return
+	}
+
+	// по умолчанию — меню
 	msg := maxbot.NewMessage()
-	if upd.Message.Recipient.ChatId != 0 {
-		msg.SetChat(upd.Message.Recipient.ChatId)
-	} else {
-		msg.SetUser(upd.Message.Sender.UserId)
-	}
-
-	// Одинаково для /start, /menu и прочих текстов — показываем меню
-	msg.SetText(services.WelcomeText())
-	// ВАЖНО: services.MenuKeyboard(api) должен возвращать schemes.Keyboard (НЕ указатель)
-	kb := services.MenuKeyboard(api)
-	msg.AddKeyboard(kb)
-
-	if _, err := api.Messages.Send(ctx, msg); err != nil {
-		log.Err(err).Msg("send menu")
-	}
+	if upd.Message.Recipient.ChatId != 0 { msg.SetChat(upd.Message.Recipient.ChatId) } else { msg.SetUser(upd.Message.Sender.UserId) }
+	msg.SetText(services.WelcomeText()).AddKeyboard(services.MenuKeyboard(api))
+	if _, err := api.Messages.Send(ctx, msg); err != nil { log.Err(err).Msg("send menu") }
 }
+
 
 func runMigrations(db *gorm.DB) {
 	if err := models.AutoMigrate(db); err != nil {
 		log.Fatal().Err(err).Msg("AutoMigrate failed")
 	}
-	// пример сидирования
-	go func() {
-		time.Sleep(300 * time.Millisecond)
-		_ = seed(db)
-	}()
-}
 
-func seed(db *gorm.DB) error {
-	// добавь сюда первичные данные при необходимости
-	return nil
+	// Сидим после миграций. Можно синхронно — это быстро и удобно для dev.
+	if err := models.SeedSampleData(db); err != nil {
+		log.Err(err).Msg("seed sample data")
+	}
 }
