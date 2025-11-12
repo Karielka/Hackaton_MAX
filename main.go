@@ -38,8 +38,10 @@ func main() {
 	//		log.Logger = log.Output(consoleWriter).With().Caller().Logger()
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true}).With().Timestamp().Caller().Logger()
 
-	configService := configservice.NewConfigInterface(configPath)
-	if configService == nil {
+	// 1) MAX: читаем конфиг и создаём клиента
+	configPath := "./config/config.yaml"
+	cfg := configservice.NewConfigInterface(configPath)
+	if cfg == nil {
 		log.Fatal().Str("configPath", configPath).Msg("NewConfigInterface failed. Stop.")
 	}
 
