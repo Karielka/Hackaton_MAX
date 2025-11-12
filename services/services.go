@@ -61,9 +61,13 @@ func Route(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) erro
 	case ServiceCampusInfo:
 		return Campus_Handle(ctx, sc, upd)
 
+	// Обработчики деканата
+	case Dean_BackToFacultyMenu:
+		return Dean_ShowModeMenu(ctx, sc, upd)
+
 	// Остальные разделы — заглушки
 	case ServiceDeanSchedule:
-		return Dean_Handle(ctx, sc, upd)
+		return Dean_ShowModeMenu(ctx, sc, upd)
 	case ServiceFoodAndCopy:
 		return Places_Handle(ctx, sc, upd)
 	case ServiceFAQ:
@@ -83,6 +87,11 @@ func Route(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) erro
 func OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUpdate) (bool, error) {
 	// Сначала пробуем обработать как запрос преподавателя
 	if handled, err := FT_OnMessage(ctx, sc, upd); handled || err != nil {
+		return handled, err
+	}
+
+	// 2) деканат (ожидаем название факультета)
+	if handled, err := Dean_OnMessage(ctx, sc, upd); handled || err != nil {
 		return handled, err
 	}
 

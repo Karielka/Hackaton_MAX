@@ -42,32 +42,58 @@ func SeedSampleData(db *gorm.DB) error {
 			return err
 		}
 	}
-	
+
 	// 2) Факультет "ИУ"
-	fac := Faculty{Name: "ИУ", InstituteID: inst.ID}
-	if err := db.Where("name = ?", fac.Name).FirstOrCreate(&fac).Error; err != nil {
-		return fmt.Errorf("seed faculty: %w", err)
+	faculties := []Faculty{
+		{Name: "ИУ", InstituteID: inst.ID},
+		{Name: "Э", InstituteID: inst.ID},
+		{Name: "РК", InstituteID: inst.ID},
+	}
+	for i, f := range faculties {
+		if err := db.Where("name = ?", f.Name).FirstOrCreate(&faculties[i]).Error; err != nil {
+			return fmt.Errorf("seed faculty %s: %w", f.Name, err)
+		}
 	}
 
 	// 3) Кафедры ИУ1..ИУ10
-	for i := 1; i <= 10; i++ {
-		depName := fmt.Sprintf("ИУ%d", i)
-		dep := Department{Name: depName, FacultyID: fac.ID}
-		if err := db.Where("name = ?", dep.Name).FirstOrCreate(&dep).Error; err != nil {
-			return fmt.Errorf("seed department %s: %w", depName, err)
-		}
-
-		teachers := sampleTeachersFor(depName, dep.ID, i) // ← передаём i
-		for _, t := range teachers {
-			var existing Teacher
-			err := db.Where("full_name = ? AND department_id = ?", t.FullName, dep.ID).First(&existing).Error
-			if err == gorm.ErrRecordNotFound {
-				if err := db.Create(&t).Error; err != nil {
-					return fmt.Errorf("seed teacher %s/%s: %w", depName, t.FullName, err)
-				}
-			} else if err != nil {
-				return fmt.Errorf("check teacher %s/%s: %w", depName, t.FullName, err)
+	for _, fac := range faculties {
+		for i := 1; i <= 5; i++ {
+			depName := fmt.Sprintf("%s%d", fac.Name, i)
+			dep := Department{Name: depName, FacultyID: fac.ID}
+			if err := db.Where("name = ?", dep.Name).FirstOrCreate(&dep).Error; err != nil {
+				return fmt.Errorf("seed department %s: %w", depName, err)
 			}
+
+			teachers := sampleTeachersFor(depName, dep.ID, i)
+			for _, t := range teachers {
+				var existing Teacher
+				err := db.Where("full_name = ? AND department_id = ?", t.FullName, dep.ID).First(&existing).Error
+				if err == gorm.ErrRecordNotFound {
+					if err := db.Create(&t).Error; err != nil {
+						return fmt.Errorf("seed teacher %s/%s: %w", depName, t.FullName, err)
+					}
+				} else if err != nil {
+					return fmt.Errorf("check teacher %s/%s: %w", depName, t.FullName, err)
+				}
+			}
+		}
+	}
+
+	// --- 5) Деканаты (DeanOffice) для каждого факультета
+	for _, fac := range faculties {
+		office := DeanOffice{
+			FacultyID: fac.ID,
+			Schedule: fmt.Sprintf(
+				"Пн–Чт: 10:00–17:00 (обед 13:00–14:00)\nПт: 10:00–16:00\nСб–Вс: выходной\n\nОтветственный секретарь: %s",
+				randomSecretary(fac.Name),
+			),
+			DocsLink: fmt.Sprintf("https://example.edu/%s/dean/docs", strings.ToLower(fac.Name)),
+			Contacts: fmt.Sprintf("Тел.: +7 (495) 000-00-%03d, каб. %s-204", fac.ID+100, fac.Name),
+		}
+		if err := db.Where("faculty_id = ?", office.FacultyID).
+			Assign(office). // если перезапускать сид, обновим данные
+			FirstOrCreate(&DeanOffice{}).Error; err != nil {
+			return fmt.Errorf("seed dean office for faculty %s: %w", fac.Name, err)
 		}
 	}
 
@@ -126,4 +152,18 @@ func translit(dep string) string {
 		}
 	}
 	return string(out)
+}
+
+// randomSecretary возвращает демонстрационного ответственного секретаря
+func randomSecretary(fac string) string {
+	switch fac {
+	case "ИУ":
+		return "Иванова Елена Сергеевна"
+	case "Э":
+		return "Петров Алексей Владимирович"
+	case "РК":
+		return "Сидорова Наталья Ивановна"
+	default:
+		return "Неизвестен"
+	}
 }
