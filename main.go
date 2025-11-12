@@ -38,7 +38,6 @@ func main() {
 	//		log.Logger = log.Output(consoleWriter).With().Caller().Logger()
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true}).With().Timestamp().Caller().Logger()
 
-
 	configService := configservice.NewConfigInterface(configPath)
 	if configService == nil {
 		log.Fatal().Str("configPath", configPath).Msg("NewConfigInterface failed. Stop.")
