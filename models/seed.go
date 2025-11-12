@@ -15,7 +15,34 @@ func SeedSampleData(db *gorm.DB) error {
 	if err := db.Where("name = ?", inst.Name).FirstOrCreate(&inst).Error; err != nil {
 		return fmt.Errorf("seed institute: %w", err)
 	}
+	// Добавляем корпуса
+	campuses := []Campus{
+		{
+			ShortName:   "ГУК",
+			FullName:    "Главный учебный корпус",
+			Address:     "ул. Студенческая, д. 35",
+			Metro:       "«Университетская» (5 мин. пешком)",
+			ImageURL:    "https://example.com/images/guk.jpg",
+			MapImageURL: "https://example.com/maps/guk_map.jpg",
+			Description: "• Аудитории 100-499\n• Деканат ФМиЕН\n• Столовая №1\n• Библиотека",
+		},
+		{
+			ShortName:   "Корпус 2",
+			FullName:    "Второй учебный корпус",
+			Address:     "ул. Академическая, д. 15",
+			Metro:       "«Научная» (10 мин. пешком)",
+			ImageURL:    "https://example.com/images/corpus2.jpg",
+			MapImageURL: "https://example.com/maps/corpus2_map.jpg",
+			Description: "• Аудитории 500-799\n• Лаборатории физики\n• Буфет №2\n• Спортивный зал",
+		},
+	}
 
+	for _, campus := range campuses {
+		if err := db.FirstOrCreate(&campus, Campus{ShortName: campus.ShortName}).Error; err != nil {
+			return err
+		}
+	}
+	
 	// 2) Факультет "ИУ"
 	fac := Faculty{Name: "ИУ", InstituteID: inst.ID}
 	if err := db.Where("name = ?", fac.Name).FirstOrCreate(&fac).Error; err != nil {
@@ -44,7 +71,6 @@ func SeedSampleData(db *gorm.DB) error {
 		}
 	}
 
-
 	return nil
 }
 
@@ -52,16 +78,16 @@ func SeedSampleData(db *gorm.DB) error {
 // sampleTeachersFor возвращает 3 преподавателя с разными ФИО
 func sampleTeachersFor(depName string, depID uint, depIndex int) []Teacher {
 	firstNames := []string{"Иван", "Пётр", "Анна", "Екатерина", "Сергей", "Мария", "Дмитрий", "Ольга", "Алексей", "Наталья"}
-	lastNames  := []string{"Иванов", "Петров", "Сидорова", "Кузнецов", "Смирнова", "Попов", "Лебедев", "Козлова", "Новикова", "Морозов"}
-	middles    := []string{"Иванович", "Петрович", "Сергеевна", "Андреевна", "Алексеевич", "Владимировна"}
+	lastNames := []string{"Иванов", "Петров", "Сидорова", "Кузнецов", "Смирнова", "Попов", "Лебедев", "Козлова", "Новикова", "Морозов"}
+	middles := []string{"Иванович", "Петрович", "Сергеевна", "Андреевна", "Алексеевич", "Владимировна"}
 
 	// helper для кругового выбора из массивов
 	pick := func(arr []string, i int) string { return arr[i%len(arr)] }
 
 	makeT := func(i int, subj, days, room string) Teacher {
 		fn := pick(firstNames, depIndex+i)
-		ln := pick(lastNames,  depIndex*2+i) // другое смещение → меньше повторов
-		mn := pick(middles,    depIndex+i/2)
+		ln := pick(lastNames, depIndex*2+i) // другое смещение → меньше повторов
+		mn := pick(middles, depIndex+i/2)
 		full := fmt.Sprintf("%s %s %s", ln, fn, mn)
 
 		return Teacher{
@@ -75,18 +101,17 @@ func sampleTeachersFor(depName string, depID uint, depIndex int) []Teacher {
 
 	return []Teacher{
 		makeT(0, "Алгоритмы и структуры данных", "Пн 10:00–11:40; Ср 12:00–13:40", "А-101"),
-		makeT(1, "Базы данных",                  "Вт 14:00–15:40; Чт 10:00–11:40", "Б-203"),
-		makeT(2, "Операционные системы",         "Пт 09:00–10:40; Ср 16:00–17:40", "В-317"),
+		makeT(1, "Базы данных", "Вт 14:00–15:40; Чт 10:00–11:40", "Б-203"),
+		makeT(2, "Операционные системы", "Пт 09:00–10:40; Ср 16:00–17:40", "В-317"),
 	}
 }
-
 
 // translit — упрощённая замена для email-части
 func translit(dep string) string {
 	repl := map[rune]string{
 		'И': "iu", 'и': "iu",
-		'У': "u",  'у': "u",
-		' ': "",   '-': "-",
+		'У': "u", 'у': "u",
+		' ': "", '-': "-",
 		'0': "0", '1': "1", '2': "2", '3': "3", '4': "4",
 		'5': "5", '6': "6", '7': "7", '8': "8", '9': "9",
 	}
