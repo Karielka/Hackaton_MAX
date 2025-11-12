@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,9 +29,12 @@ func main() {
 	// 1) MAX: читаем конфиг и создаём клиента
 	configPath := "./config/config.yaml"
 	cfg := configservice.NewConfigInterface(configPath)
+
 	if cfg == nil {
 		log.Fatal().Str("configPath", configPath).Msg("NewConfigInterface failed. Stop.")
 	}
+	fmt.Println(cfg)
+
 	api, err := maxbot.NewWithConfig(cfg) // тип клиента из SDK: *maxbot.Api
 	if err != nil {
 		log.Fatal().Err(err).Msg("NewWithConfig failed. Stop.")
@@ -81,16 +85,21 @@ func main() {
 	}
 }
 
-
 // /start, /menu — показываем меню, ИНАЧЕ — пробуем обработать текст сценарием поиска
 func handleMessage(ctx context.Context, api *maxbot.Api, db *gorm.DB, upd *schemes.MessageCreatedUpdate) {
 	// команды
 	switch upd.GetCommand() {
 	case "/start", "/menu":
 		msg := maxbot.NewMessage()
-		if upd.Message.Recipient.ChatId != 0 { msg.SetChat(upd.Message.Recipient.ChatId) } else { msg.SetUser(upd.Message.Sender.UserId) }
+		if upd.Message.Recipient.ChatId != 0 {
+			msg.SetChat(upd.Message.Recipient.ChatId)
+		} else {
+			msg.SetUser(upd.Message.Sender.UserId)
+		}
 		msg.SetText(services.WelcomeText()).AddKeyboard(services.MenuKeyboard(api))
-		if _, err := api.Messages.Send(ctx, msg); err != nil { log.Err(err).Msg("send menu") }
+		if _, err := api.Messages.Send(ctx, msg); err != nil {
+			log.Err(err).Msg("send menu")
+		}
 		return
 	}
 
@@ -105,11 +114,16 @@ func handleMessage(ctx context.Context, api *maxbot.Api, db *gorm.DB, upd *schem
 
 	// по умолчанию — меню
 	msg := maxbot.NewMessage()
-	if upd.Message.Recipient.ChatId != 0 { msg.SetChat(upd.Message.Recipient.ChatId) } else { msg.SetUser(upd.Message.Sender.UserId) }
+	if upd.Message.Recipient.ChatId != 0 {
+		msg.SetChat(upd.Message.Recipient.ChatId)
+	} else {
+		msg.SetUser(upd.Message.Sender.UserId)
+	}
 	msg.SetText(services.WelcomeText()).AddKeyboard(services.MenuKeyboard(api))
-	if _, err := api.Messages.Send(ctx, msg); err != nil { log.Err(err).Msg("send menu") }
+	if _, err := api.Messages.Send(ctx, msg); err != nil {
+		log.Err(err).Msg("send menu")
+	}
 }
-
 
 func runMigrations(db *gorm.DB) {
 	if err := models.AutoMigrate(db); err != nil {

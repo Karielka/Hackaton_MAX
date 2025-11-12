@@ -29,26 +29,30 @@ type Teacher struct {
 	ID           uint   `gorm:"primaryKey"`
 	FullName     string `gorm:"index;not null"` // ФИО
 	Email        string `gorm:"index"`
-	Subject      string `gorm:"index"`          // предмет (опционально)
+	Subject      string `gorm:"index"` // предмет (опционально)
 	DepartmentID uint
 	Department   Department `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	Schedule     string     `gorm:"type:text"`  // заглушка; позже вынесем в отдельную сущность
+	Schedule     string     `gorm:"type:text"` // заглушка; позже вынесем в отдельную сущность
 }
 
 type DeanOffice struct {
-	ID        uint   `gorm:"primaryKey"`
-	FacultyID uint   `gorm:"uniqueIndex"`
+	ID        uint `gorm:"primaryKey"`
+	FacultyID uint `gorm:"uniqueIndex"`
 	Schedule  string
 	DocsLink  string
 	Contacts  string
 }
 
 type Campus struct {
-	ID           uint   `gorm:"primaryKey"`
-	ShortName    string `gorm:"index;not null"`
-	Address      string
-	ImageURL     string
-	InstituteID  uint // если нужно привязать корпуса к институту
+	ID          uint   `gorm:"primaryKey"`
+	ShortName   string `gorm:"index;not null"`
+	FullName    string `gorm:"index;not null"`
+	Address     string
+	Metro       string // Ближайшее метро
+	ImageURL    string // Фото корпуса
+	MapImageURL string // Фото с картой
+	Description string // Что находится внутри
+	InstituteID uint   // если нужно привязать корпуса к институту
 }
 
 type Place struct {
