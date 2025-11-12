@@ -1,15 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/binary"
-	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
+	"time"
 
 	maxbot "github.com/max-messenger/max-bot-api-client-go"
 	"github.com/max-messenger/max-bot-api-client-go/configservice"
@@ -17,25 +13,17 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	"gorm.io/gorm"
+
+	intdb "github.com/Karielka/Hackaton_MAX/internal/db"
+	"github.com/Karielka/Hackaton_MAX/models"
+	"github.com/Karielka/Hackaton_MAX/services"
 )
 
-func url(user int64) string {
-	buf := new(bytes.Buffer)
-	byteOrder := binary.BigEndian
-
-	binary.Write(buf, byteOrder, int64(user))
-	fmt.Printf("uint64: %v\n", buf.Bytes())
-	fmt.Printf("uint64: %v\n", string(buf.Bytes()))
-	fmt.Printf("uint64b: %v\n", base64.StdEncoding.EncodeToString(buf.Bytes()))
-	fmt.Printf("uint64bt: %v\n", strings.Trim(base64.StdEncoding.EncodeToString(buf.Bytes()), "="))
-	return "https://max.ru/u/" + strings.Trim(base64.StdEncoding.EncodeToString(buf.Bytes()), "=")
-}
-
 func main() {
-	configPath := "./config/config.yaml"
-	//zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	// Логи
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	//		log.Logger = log.Output(consoleWriter).With().Caller().Logger()
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true}).With().Timestamp().Caller().Logger()
 
 	// 1) MAX: читаем конфиг и создаём клиента
@@ -44,148 +32,88 @@ func main() {
 	if cfg == nil {
 		log.Fatal().Str("configPath", configPath).Msg("NewConfigInterface failed. Stop.")
 	}
-
-	api, err := maxbot.NewWithConfig(configService)
+	api, err := maxbot.NewWithConfig(cfg) // тип клиента из SDK: *maxbot.Api
 	if err != nil {
 		log.Fatal().Err(err).Msg("NewWithConfig failed. Stop.")
 	}
 
+	// 2) БД (GORM + Postgres)
+	db := intdb.Connect()
+	runMigrations(db)
+
+	// 3) Контекст с graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		exit := make(chan os.Signal, 1)
-		signal.Notify(exit, syscall.SIGTERM, os.Interrupt)
-		<-exit
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGTERM, os.Interrupt)
+		<-ch
 		cancel()
 	}()
 
-	info, err := api.Bots.GetBot(ctx) // Простой метод
-	log.Printf("Get me: %#v %#v", info, err)
+	// 4) Команды бота (опционально)
+	_, _ = api.Bots.PatchBot(ctx, &schemes.BotPatch{
+		Commands: []schemes.BotCommand{
+			{Name: "start", Description: "Показать меню"},
+			{Name: "menu", Description: "Показать меню"},
+		},
+	})
 
-	info, err = api.Bots.PatchBot(ctx, &schemes.BotPatch{Commands: []schemes.BotCommand{{Name: "shutdown", Description: "Перезапускает бота"}}}) // Простой метод
-	log.Printf("Get me: %#v %#v", info, err)
+	log.Info().Msg("Bot is up. Waiting for updates...")
 
-	chatList, err := api.Chats.GetChats(ctx, 0, 0)
-	if err != nil {
-		fmt.Printf("Unknown type: %#v", err)
-	}
-	for _, chat := range chatList.Chats {
-		fmt.Printf("Bot is members at the chat: %#v", chat.Title)
-		fmt.Printf("	: %#v", chat.ChatId)
-	}
-
-	for upd := range api.GetUpdates(ctx) { // Чтение из канала с обновлениями
+	// 5) Главный цикл апдейтов
+	for upd := range api.GetUpdates(ctx) {
+		// полезно в отладке, можно выключить
 		api.Debugs.Send(ctx, upd)
-		switch upd := upd.(type) { // Определение типа пришедшего обновления
-		case *schemes.MessageCreatedUpdate:
-			out := "bot прочитал текст: " + upd.Message.Body.Text
-			switch upd.GetCommand() {
-			case "/chats":
-				out = "команда : " + upd.GetCommand()
-				_, err = api.Messages.Send(ctx, maxbot.NewMessage().SetChat(upd.Message.Recipient.ChatId).SetText(out))
-				log.Printf("Answer: %#v", err)
-				continue
-			case "/chats_full":
-				chatList, err := api.Chats.GetChats(ctx, 0, 0)
-				if err != nil {
-					log.Printf("Unknown type: %#v", err)
-				}
-				out := "List of chats\n"
-				for _, chat := range chatList.Chats {
-					out += fmt.Sprintf(" 	   title: %#v\n", chat.Title)
-					out += fmt.Sprintf("	      id: %#v\n", chat.ChatId)
-					out += fmt.Sprintf(" description: %#v\n", chat.Description)
-					out += fmt.Sprintf("   is public: %#v\n", chat.IsPublic)
-					out += fmt.Sprintf("   		link: %#v\n", chat.Link)
-					out += fmt.Sprintf("   	  status: %#v\n", chat.Status)
-					out += fmt.Sprintf("       owner: %#v\n", chat.OwnerId)
-					out += fmt.Sprintf("       type: %#v\n", chat.Type)
-					out += fmt.Sprintf("______\n")
-				}
-				api.Messages.SendMessageResult(ctx, maxbot.NewMessage().SetReply("И вам привет!", upd.Message.Body.Mid))
-				mes, err := api.Messages.SendMessageResult(ctx, maxbot.NewMessage().SetChat(upd.Message.Recipient.ChatId).SetText(out))
-				fmt.Printf("Answer: %v", mes.Body.Mid)
-				continue
-			}
-			keyboard := api.Messages.NewKeyboardBuilder()
-			keyboard.
-				AddRow().
-				AddGeolocation("Прислать геолокацию", true).
-				AddContact("Прислать контакт")
-			keyboard.
-				AddRow().
-				AddLink("Cсылка", schemes.POSITIVE, "https://max.ru").
-				AddCallback("Аудио", schemes.NEGATIVE, "audio").
-				AddCallback("Видео", schemes.NEGATIVE, "video")
-			keyboard.
-				AddRow().
-				AddCallback("Картинка", schemes.POSITIVE, "picture")
 
-			mes, _ := api.Messages.SendMessageResult(ctx, maxbot.NewMessage().SetUser(upd.Message.Sender.UserId).SetReply("И вам привет!(в личку!)", upd.Message.Body.Mid))
-			api.Messages.SendMessageResult(ctx, maxbot.NewMessage().SetUser(upd.Message.Sender.UserId).SetReply("И вам привет!(в личку!)", mes.Body.Mid))
-			reply_id, err := api.Messages.Send(ctx, maxbot.NewMessage().SetChat(upd.Message.Recipient.ChatId).SetReply("И вам привет! (в чат)", upd.Message.Body.Mid))
-			api.Messages.Send(ctx, maxbot.NewMessage().SetChat(upd.Message.Recipient.ChatId).SetReply("И вам привет! (в чат) на rep", reply_id))
-			// Отправка сообщения с клавиатурой
-			id, err := api.Messages.Send(ctx, maxbot.NewMessage().SetChat(upd.Message.Recipient.ChatId).AddKeyboard(keyboard).SetText(out))
-			mes_rep, _ := api.Messages.SendMessageResult(ctx, maxbot.NewMessage().Reply("**Reply** univesal", upd.Message).SetFormat("markdown"))
-			api.Messages.SendMessageResult(ctx, maxbot.NewMessage().Reply("<b>Привет!</b> <i>Добро пожаловать</i>", mes_rep).SetFormat("html"))
-			fmt.Printf("Answer:%v : %v", id, err)
+		switch upd := upd.(type) {
+		case *schemes.MessageCreatedUpdate:
+			handleMessage(ctx, api, db, upd)
 
 		case *schemes.MessageCallbackUpdate:
-			// Ответ на коллбек
-			msg := maxbot.NewMessage()
-			if upd.Message.Recipient.UserId != 0 {
-				msg.SetUser(upd.Message.Recipient.UserId)
-			}
-			if upd.Message.Recipient.ChatId != 0 {
-				msg.SetChat(upd.Message.Recipient.ChatId)
-			}
-			if upd.Callback.Payload == "picture" {
-				photo, err := api.Uploads.UploadPhotoFromFile(ctx, "./big-logo.png")
-				if err != nil {
-					log.Err(err).Msg("Uploads.UploadPhotoFromFile")
-					break
-				}
-				msg.AddPhoto(photo) // прикрипляем к сообщению изображение
-				if _, err := api.Messages.SendMessageResult(ctx, msg); err != nil {
-					log.Err(err).Msg("Messages.Send")
-				}
-			}
-			if upd.Callback.Payload == "audio" {
-				if audio, err := api.Uploads.UploadMediaFromFile(ctx, schemes.AUDIO, "./music.mp3"); err == nil {
-					msg.AddAudio(audio) // прикрипляем к сообщению mp3
-				} else {
-					log.Err(err).Msg("Uploads.UploadPhotoFromFile")
-					break
-				}
-				if _, err := api.Messages.SendMessageResult(ctx, msg); err != nil {
-					log.Err(err).Msg("Messages.Send")
-				}
-			}
-			if upd.Callback.Payload == "video" {
-				if video, err := api.Uploads.UploadMediaFromFile(ctx, schemes.VIDEO, "./video.mp4"); err == nil {
-					msg.AddVideo(video) // прикрипляем к сообщению mp4
-				} else {
-					log.Err(err).Msg("Uploads.UploadPhotoFromFile")
-					break
-				}
-				if _, err := api.Messages.SendMessageResult(ctx, msg); err != nil {
-					log.Err(err).Msg("Messages.Send")
-				}
-			}
-			if upd.Callback.Payload == "file" {
-				if doc, err := api.Uploads.UploadMediaFromFile(ctx, schemes.FILE, "./max.pdf"); err == nil {
-					msg.AddFile(doc) // прикрипляем к сообщению pdf file
-				} else {
-					log.Err(err).Msg("Uploads.UploadPhotoFromFile")
-					break
-				}
-				if _, err := api.Messages.SendMessageResult(ctx, msg); err != nil {
-					log.Err(err).Msg("Messages.Send")
-				}
+			// маршрутизация в сервисы
+			sc := services.Ctx{API: api, DB: db}
+			if err := services.Route(ctx, sc, upd); err != nil {
+				log.Err(err).Msg("services.Route")
 			}
 
 		default:
-			log.Printf("Unknown type: %#v", upd)
+			log.Debug().Msgf("Skip update type: %T", upd)
 		}
 	}
+}
+
+// /start, /menu, любое сообщение — показываем меню
+func handleMessage(ctx context.Context, api *maxbot.Api, db *gorm.DB, upd *schemes.MessageCreatedUpdate) {
+	msg := maxbot.NewMessage()
+	if upd.Message.Recipient.ChatId != 0 {
+		msg.SetChat(upd.Message.Recipient.ChatId)
+	} else {
+		msg.SetUser(upd.Message.Sender.UserId)
+	}
+
+	// Одинаково для /start, /menu и прочих текстов — показываем меню
+	msg.SetText(services.WelcomeText())
+	// ВАЖНО: services.MenuKeyboard(api) должен возвращать schemes.Keyboard (НЕ указатель)
+	kb := services.MenuKeyboard(api)
+	msg.AddKeyboard(kb)
+
+	if _, err := api.Messages.Send(ctx, msg); err != nil {
+		log.Err(err).Msg("send menu")
+	}
+}
+
+func runMigrations(db *gorm.DB) {
+	if err := models.AutoMigrate(db); err != nil {
+		log.Fatal().Err(err).Msg("AutoMigrate failed")
+	}
+	// пример сидирования
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_ = seed(db)
+	}()
+}
+
+func seed(db *gorm.DB) error {
+	// добавь сюда первичные данные при необходимости
+	return nil
 }
