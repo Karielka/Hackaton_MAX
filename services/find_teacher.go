@@ -14,9 +14,9 @@ import (
 
 // Внутренние payload для подменю поиска
 const (
-	FT_FindByFaculty   = "find_by_faculty"
-	FT_FindByDepartment= "find_by_department"
-	FT_FindByFIO       = "find_by_fio"
+	FT_FindByFaculty    = "find_by_faculty"
+	FT_FindByDepartment = "find_by_department"
+	FT_FindByFIO        = "find_by_fio"
 )
 
 // --- состояние диалога (по peerId) ---
@@ -43,17 +43,23 @@ func ftPeerFromMessage(upd *schemes.MessageCreatedUpdate) int64 {
 	return upd.Message.Sender.UserId
 }
 func ftSet(peer int64, st ftState) { ftMu.Lock(); ftData[peer] = st; ftMu.Unlock() }
-func ftGet(peer int64) (ftState, bool) { ftMu.RLock(); s, ok := ftData[peer]; ftMu.RUnlock(); return s, ok }
+func ftGet(peer int64) (ftState, bool) {
+	ftMu.RLock()
+	s, ok := ftData[peer]
+	ftMu.RUnlock()
+	return s, ok
+}
 func ftClear(peer int64) { ftMu.Lock(); delete(ftData, peer); ftMu.Unlock() }
 
 // --- UI подменю выбора режима поиска ---
 func FT_ShowModeMenu(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) error {
 	kb := sc.API.Messages.NewKeyboardBuilder()
 	kb.AddRow().
-		AddCallback("По факультету", schemes.POSITIVE,  FT_FindByFaculty).
-		AddCallback("По кафедре",    schemes.POSITIVE,  FT_FindByDepartment)
+		AddCallback("По факультету", schemes.POSITIVE, FT_FindByFaculty).
+		AddCallback("По кафедре", schemes.POSITIVE, FT_FindByDepartment)
 	kb.AddRow().
-		AddCallback("По ФИО",        schemes.POSITIVE, FT_FindByFIO)
+		AddCallback("По ФИО", schemes.POSITIVE, FT_FindByFIO)
+	kb.AddRow().AddCallback("◀️ Назад", schemes.NEGATIVE, "back_to_menu")
 
 	msg := maxbot.NewMessage()
 	if upd.Message.Recipient.ChatId != 0 {
@@ -72,16 +78,19 @@ func FT_AskForQuery(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpd
 
 	mode := ""
 	switch upd.Callback.Payload {
-	case FT_FindByFaculty:    mode = "faculty"
-	case FT_FindByDepartment: mode = "department"
-	case FT_FindByFIO:        mode = "fio"
+	case FT_FindByFaculty:
+		mode = "faculty"
+	case FT_FindByDepartment:
+		mode = "department"
+	case FT_FindByFIO:
+		mode = "fio"
 	}
 	ftSet(peer, ftState{Mode: mode})
 
 	prompt := map[string]string{
-		"faculty":   "Введите название факультета:",
-		"department":"Введите название кафедры:",
-		"fio":       "Введите часть ФИО (например, «иванов»):",
+		"faculty":    "Введите название факультета:",
+		"department": "Введите название кафедры:",
+		"fio":        "Введите часть ФИО (например, «иванов»):",
 	}[mode]
 
 	msg := maxbot.NewMessage()
@@ -147,7 +156,7 @@ func FT_OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUpdate
 		b.WriteString(ftFormatTeacher(t))
 		b.WriteString("\n")
 	}
-	_ = ftReplyMsg(ctx, sc, upd, b.String())
+	_ = ftReplyMsgWithKeyboard(ctx, sc, upd, b.String())
 	ftClear(peer)
 	return true, nil
 }
@@ -162,6 +171,26 @@ func ftReplyMsg(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUpdate, 
 		msg.SetUser(upd.Message.Sender.UserId)
 	}
 	msg.SetText(text)
+	_, err := sc.API.Messages.Send(ctx, msg)
+	return err
+}
+
+func ftReplyMsgWithKeyboard(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUpdate, text string) error {
+	kb := sc.API.Messages.NewKeyboardBuilder()
+	kb.AddRow().
+		AddCallback("По факультету", schemes.POSITIVE, FT_FindByFaculty).
+		AddCallback("По кафедре", schemes.POSITIVE, FT_FindByDepartment)
+	kb.AddRow().
+		AddCallback("По ФИО", schemes.POSITIVE, FT_FindByFIO)
+	kb.AddRow().AddCallback("◀️ Назад", schemes.NEGATIVE, "back_to_menu")
+
+	msg := maxbot.NewMessage()
+	if upd.Message.Recipient.ChatId != 0 {
+		msg.SetChat(upd.Message.Recipient.ChatId)
+	} else {
+		msg.SetUser(upd.Message.Sender.UserId)
+	}
+	msg.SetText(text + "\n Найти кого-нибудь еще?").AddKeyboard(kb)
 	_, err := sc.API.Messages.Send(ctx, msg)
 	return err
 }
