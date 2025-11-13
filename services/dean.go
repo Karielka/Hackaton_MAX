@@ -19,7 +19,6 @@ const (
 	Dean_BackToFacultyMenu = "dean_back_to_faculty_menu"
 )
 
-// --- собственное состояние деканата (НЕ ft*)
 type deanState struct {
 	WaitFacultyName bool // ждём ввод названия факультета
 }
