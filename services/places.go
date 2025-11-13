@@ -10,14 +10,6 @@ import (
 	"github.com/max-messenger/max-bot-api-client-go/schemes"
 )
 
-// Пэйлоады для мест
-const (
-	PlacesShowCanteens = "places_show_canteens"
-	PlacesShowBuffets  = "places_show_buffets"
-	PlacesShowCopies   = "places_show_copies"
-	PlacesBackToCampus = "places_back_to_campus"
-)
-
 // Places_Handle - обработчик меню "Столовые/копирки"
 func Places_Handle(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) error {
 	return showCampusSelectionForPlaces(ctx, sc, upd.Message.Recipient)
@@ -38,10 +30,8 @@ func showCampusSelectionForPlaces(ctx context.Context, sc Ctx, recipient schemes
 		return err
 	}
 
-	// Создаем клавиатуру с корпусами
 	kb := sc.API.Messages.NewKeyboardBuilder()
 
-	// Добавляем корпуса в 2 колонки
 	for i := 0; i < len(campuses); i += 2 {
 		row := kb.AddRow()
 		row.AddCallback(campuses[i].ShortName, schemes.POSITIVE,
@@ -53,7 +43,6 @@ func showCampusSelectionForPlaces(ctx context.Context, sc Ctx, recipient schemes
 		}
 	}
 
-	// Кнопка возврата в главное меню
 	kb.AddRow().AddCallback("◀️ Назад", schemes.NEGATIVE, "back_to_menu")
 
 	msg := maxbot.NewMessage()
@@ -66,7 +55,6 @@ func showCampusSelectionForPlaces(ctx context.Context, sc Ctx, recipient schemes
 
 // handleCampusSelectionForPlaces - обработчик выбора корпуса для мест
 func handleCampusSelectionForPlaces(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) error {
-	// Извлекаем ID корпуса из payload (формат: "places_campus_1")
 	campusID := strings.TrimPrefix(upd.Callback.Payload, "places_campus_")
 
 	var campus models.Campus
@@ -83,7 +71,6 @@ func handleCampusSelectionForPlaces(ctx context.Context, sc Ctx, upd *schemes.Me
 
 // showPlaceTypesMenu - показывает меню типов мест в корпусе
 func showPlaceTypesMenu(ctx context.Context, sc Ctx, campus models.Campus, recipient schemes.Recipient) error {
-	// Проверяем, какие типы мест есть в этом корпусе
 	var placeTypes []string
 	if err := sc.DB.Model(&models.Place{}).
 		Where("campus_id = ?", campus.ID).
@@ -94,7 +81,6 @@ func showPlaceTypesMenu(ctx context.Context, sc Ctx, campus models.Campus, recip
 
 	kb := sc.API.Messages.NewKeyboardBuilder()
 
-	// Добавляем кнопки для доступных типов мест
 	hasCanteen := false
 	hasBuffet := false
 	hasCopy := false
@@ -114,13 +100,11 @@ func showPlaceTypesMenu(ctx context.Context, sc Ctx, campus models.Campus, recip
 		}
 	}
 
-	// Если есть буфеты, добавляем кнопку
 	if hasBuffet {
 		kb.AddRow().AddCallback("☕ Буфеты", schemes.POSITIVE,
 			fmt.Sprintf("places_buffet_%d", campus.ID))
 	}
 
-	// Кнопки навигации
 	kb.AddRow().
 		AddCallback("◀️ К выбору корпуса", schemes.NEGATIVE, ServiceFoodAndCopy).
 		AddCallback("🏠 Главное меню", schemes.NEGATIVE, "back_to_menu")
@@ -142,7 +126,6 @@ func showPlaceTypesMenu(ctx context.Context, sc Ctx, campus models.Campus, recip
 func handlePlaceTypeSelection(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) error {
 	payload := upd.Callback.Payload
 
-	// Определяем тип места и ID корпуса
 	var placeType string
 	var campusID string
 
@@ -184,7 +167,6 @@ func showPlacesByType(ctx context.Context, sc Ctx, placeType, campusID string, r
 		return err
 	}
 
-	// Для столовой показываем подробную информацию, для остальных - список
 	if placeType == "canteen" && len(places) > 0 {
 		return showCanteenDetails(ctx, sc, places[0], campusID, recipient)
 	}
@@ -199,7 +181,6 @@ func showCanteenDetails(ctx context.Context, sc Ctx, place models.Place, campusI
 		return fmt.Errorf("failed to fetch campus: %w", err)
 	}
 
-	// Формируем текст сообщения
 	text := fmt.Sprintf(
 		"🍽️ %s (%s)\n📍 Расположение: %s\n🕐 Режим работы: %s\n\n📋 Меню на сегодня:\n%s",
 		place.Name,
@@ -209,10 +190,8 @@ func showCanteenDetails(ctx context.Context, sc Ctx, place models.Place, campusI
 		place.MenuToday,
 	)
 
-	// Создаем клавиатуру с действиями
 	kb := sc.API.Messages.NewKeyboardBuilder()
 
-	// Проверяем, есть ли другие типы мест в этом корпусе
 	var otherTypes []string
 	sc.DB.Model(&models.Place{}).
 		Where("campus_id = ? AND type != ?", campusID, "canteen").
@@ -272,7 +251,6 @@ func showPlacesList(ctx context.Context, sc Ctx, places []models.Place, placeTyp
 		b.WriteString("\n")
 	}
 
-	// Создаем клавиатуру навигации
 	kb := sc.API.Messages.NewKeyboardBuilder()
 	kb.AddRow().
 		AddCallback("◀️ К выбору типа", schemes.NEGATIVE, fmt.Sprintf("places_campus_%s", campusID)).
@@ -293,7 +271,6 @@ func Places_OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUp
 		return false, nil
 	}
 
-	// Проверяем ключевые слова
 	keywords := []string{"столовая", "буфет", "копирка", "копир", "еда", "печать", "распечатать"}
 	hasKeyword := false
 	for _, keyword := range keywords {
@@ -307,7 +284,6 @@ func Places_OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUp
 		return false, nil
 	}
 
-	// Показываем выбор корпуса
 	recipient := schemes.Recipient{}
 	if upd.Message.Recipient.ChatId != 0 {
 		recipient.ChatId = upd.Message.Recipient.ChatId

@@ -30,10 +30,8 @@ func showCampusSelection(ctx context.Context, sc Ctx, recipient schemes.Recipien
 		return err
 	}
 
-	// Создаем клавиатуру с корпусами
 	kb := sc.API.Messages.NewKeyboardBuilder()
 
-	// Добавляем корпуса в 2 колонки для лучшего отображения
 	for i := 0; i < len(campuses); i += 2 {
 		row := kb.AddRow()
 		row.AddCallback(campuses[i].ShortName, schemes.POSITIVE, fmt.Sprintf("campus_%d", campuses[i].ID))
@@ -43,7 +41,6 @@ func showCampusSelection(ctx context.Context, sc Ctx, recipient schemes.Recipien
 		}
 	}
 
-	// Кнопка возврата в главное меню
 	kb.AddRow().AddCallback("◀️ Назад", schemes.NEGATIVE, "back_to_menu")
 
 	msg := maxbot.NewMessage()
@@ -56,7 +53,6 @@ func showCampusSelection(ctx context.Context, sc Ctx, recipient schemes.Recipien
 
 // handleCampusSelection - обработчик выбора конкретного корпуса
 func handleCampusSelection(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) error {
-	// Извлекаем ID корпуса из payload (формат: "campus_1")
 	campusID := strings.TrimPrefix(upd.Callback.Payload, "campus_")
 
 	var campus models.Campus
@@ -73,7 +69,6 @@ func handleCampusSelection(ctx context.Context, sc Ctx, upd *schemes.MessageCall
 
 // sendCampusInfo - отправляет информацию о корпусе
 func sendCampusInfo(ctx context.Context, sc Ctx, campus models.Campus, recipient schemes.Recipient) error {
-	// Формируем текст сообщения
 	text := fmt.Sprintf(
 		"🏫 %s (%s)\n\n📍 Адрес: %s\n🚇 Метро: %s\n\nЧто находится внутри:\n%s",
 		campus.FullName,
@@ -83,7 +78,6 @@ func sendCampusInfo(ctx context.Context, sc Ctx, campus models.Campus, recipient
 		campus.Description,
 	)
 
-	// Создаем клавиатуру с действиями
 	kb := sc.API.Messages.NewKeyboardBuilder()
 	kb.AddRow().
 		AddCallback("🗺️ Показать на карте", schemes.POSITIVE, fmt.Sprintf("%s_%d", CampusShowMap, campus.ID))
@@ -91,18 +85,17 @@ func sendCampusInfo(ctx context.Context, sc Ctx, campus models.Campus, recipient
 		AddCallback("◀️ К списку корпусов", schemes.NEGATIVE, ServiceCampusInfo).
 		AddCallback("🏠 Главное меню", schemes.NEGATIVE, "back_to_menu")
 
-	// Сначала отправляем фото корпуса
-	if campus.ImageURL != "" {
-		photoMsg := maxbot.NewMessage()
-		setRecipient(photoMsg, recipient)
-		//photoMsg.SetImage(campus.ImageURL)
-		if _, err := sc.API.Messages.Send(ctx, photoMsg); err != nil {
-			// Логируем ошибку, но продолжаем отправлять текст
-			fmt.Printf("Failed to send image: %v\n", err)
-		}
-	}
+	//TODO сделать чтоб фотка была в виде токена - как - хз
 
-	// Затем отправляем текстовое сообщение с клавиатурой
+	//if campus.ImageURL != "" {
+	//	photoMsg := maxbot.NewMessage().AddPhoto()
+	//	setRecipient(photoMsg, recipient)
+	//	if _, err := sc.API.Messages.Send(ctx, photoMsg); err != nil {
+	//		// Логируем ошибку, но продолжаем отправлять текст
+	//		fmt.Printf("Failed to send image: %v\n", err)
+	//	}
+	//}
+
 	msg := maxbot.NewMessage()
 	setRecipient(msg, recipient)
 	msg.SetText(text).AddKeyboard(kb)
@@ -113,7 +106,6 @@ func sendCampusInfo(ctx context.Context, sc Ctx, campus models.Campus, recipient
 
 // handleCampusMap - обработчик кнопки "Показать на карте"
 func handleCampusMap(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) error {
-	// Извлекаем ID корпуса из payload (формат: "campus_show_map_1")
 	payload := strings.TrimPrefix(upd.Callback.Payload, CampusShowMap+"_")
 
 	var campus models.Campus
@@ -125,18 +117,18 @@ func handleCampusMap(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUp
 		return err
 	}
 
-	// Отправляем фото с картой
-	if campus.MapImageURL != "" {
-		msg := maxbot.NewMessage()
-		setRecipient(msg, upd.Message.Recipient)
-		//msg.SetImage(campus.MapImageURL)
-		msg.SetText(fmt.Sprintf("🗺️ %s на карте", campus.FullName))
+	//TODO - фотка карты пока не сделана
 
-		_, err := sc.API.Messages.Send(ctx, msg)
-		return err
-	}
+	//if campus.MapImageURL != "" {
+	//	msg := maxbot.NewMessage()
+	//	setRecipient(msg, upd.Message.Recipient)
+	//	msg.SetImage(campus.MapImageURL)
+	//	msg.SetText(fmt.Sprintf("🗺️ %s на карте", campus.FullName))
+	//
+	//	_, err := sc.API.Messages.Send(ctx, msg)
+	//	return err
+	//}
 
-	// Если фото карты нет, отправляем текстовое описание
 	msg := maxbot.NewMessage()
 	setRecipient(msg, upd.Message.Recipient)
 	msg.SetText(fmt.Sprintf("🗺️ %s\n📍 %s\n🚇 %s", campus.FullName, campus.Address, campus.Metro))
@@ -152,7 +144,6 @@ func Campus_OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUp
 		return false, nil
 	}
 
-	// Ищем корпус по короткому или полному названию
 	var campus models.Campus
 	query := sc.DB.Where("LOWER(short_name) = LOWER(?) OR LOWER(full_name) LIKE LOWER(?)",
 		text, "%"+text+"%")
@@ -162,7 +153,6 @@ func Campus_OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUp
 		return false, nil
 	}
 
-	// Нашли корпус - показываем информацию
 	recipient := schemes.Recipient{}
 	if upd.Message.Recipient.ChatId != 0 {
 		recipient.ChatId = upd.Message.Recipient.ChatId
