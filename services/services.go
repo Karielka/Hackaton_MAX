@@ -2,11 +2,12 @@ package services
 
 import (
 	"context"
-	"strings"
-
+	"fmt"
+	"github.com/Karielka/Hackaton_MAX/models"
 	maxbot "github.com/max-messenger/max-bot-api-client-go"
 	"github.com/max-messenger/max-bot-api-client-go/schemes"
 	"gorm.io/gorm"
+	"strings"
 )
 
 // Пэйлоады главного меню
@@ -33,7 +34,32 @@ type Ctx struct {
 func Route(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) error {
 	// Обработка возврата в главное меню
 	if upd.Callback.Payload == "back_to_menu" {
+		// Очищаем состояние поиска если есть
+		peer := ftPeerFromCallback(upd)
+		ftClear(peer)
 		return showMainMenu(ctx, sc, upd.Message.Recipient)
+	}
+
+	// Обработка выбора корпуса для мест (формат: "places_campus_1")
+	if strings.HasPrefix(upd.Callback.Payload, "places_campus_") {
+		return handleCampusSelectionForPlaces(ctx, sc, upd)
+	}
+
+	// Обработка выбора типа места (столовая, буфет, копирка)
+	if strings.HasPrefix(upd.Callback.Payload, "places_canteen_") ||
+		strings.HasPrefix(upd.Callback.Payload, "places_buffet_") ||
+		strings.HasPrefix(upd.Callback.Payload, "places_copy_") {
+		return handlePlaceTypeSelection(ctx, sc, upd)
+	}
+
+	// Обработка возврата к выбору типа мест в корпусе
+	if strings.HasPrefix(upd.Callback.Payload, "places_back_to_campus_") {
+		campusID := strings.TrimPrefix(upd.Callback.Payload, "places_back_to_campus_")
+		var campus models.Campus
+		if err := sc.DB.First(&campus, campusID).Error; err != nil {
+			return fmt.Errorf("failed to fetch campus: %w", err)
+		}
+		return showPlaceTypesMenu(ctx, sc, campus, upd.Message.Recipient)
 	}
 
 	// Обработка выбора корпуса (формат: "campus_1", "campus_2")
@@ -61,15 +87,17 @@ func Route(ctx context.Context, sc Ctx, upd *schemes.MessageCallbackUpdate) erro
 	case ServiceCampusInfo:
 		return Campus_Handle(ctx, sc, upd)
 
+	// Обработчики мест
+	case ServiceFoodAndCopy:
+		return Places_Handle(ctx, sc, upd)
+
 	// Обработчики деканата
 	case Dean_BackToFacultyMenu:
 		return Dean_ShowModeMenu(ctx, sc, upd)
 
-	// Остальные разделы — заглушки
+	// Остальные разделы
 	case ServiceDeanSchedule:
 		return Dean_ShowModeMenu(ctx, sc, upd)
-	case ServiceFoodAndCopy:
-		return Places_Handle(ctx, sc, upd)
 	case ServiceFAQ:
 		return FAQ_Handle(ctx, sc, upd)
 
@@ -95,7 +123,12 @@ func OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUpdate) (
 		return handled, err
 	}
 
-	// Затем пробуем обработать как запрос корпуса
+	// 3) места (столовые, буфеты, копирки)
+	if handled, err := Places_OnMessage(ctx, sc, upd); handled || err != nil {
+		return handled, err
+	}
+
+	// 4) корпуса
 	if handled, err := Campus_OnMessage(ctx, sc, upd); handled || err != nil {
 		return handled, err
 	}

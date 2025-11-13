@@ -56,13 +56,14 @@ type Campus struct {
 }
 
 type Place struct {
-	ID       uint   `gorm:"primaryKey"`
-	CampusID uint   `gorm:"index"`
-	Type     string `gorm:"index"` // "canteen" | "buffet" | "copy"...
-	Name     string
-	Location string
-	Schedule string
-	MenuURL  string
+	ID        uint   `gorm:"primaryKey"`
+	CampusID  uint   `gorm:"index"`
+	Type      string `gorm:"index"` // "canteen" | "buffet" | "copy"...
+	Name      string
+	Location  string
+	Schedule  string
+	MenuURL   string
+	MenuToday string `gorm:"type:text"` // Меню на сегодня
 }
 
 type FAQ struct {
