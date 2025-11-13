@@ -164,7 +164,7 @@ func SeedSampleData(db *gorm.DB) error {
 	return nil
 }
 
-// sampleTeachersFor возвращает 2–3 демонстрационных преподавателя для кафедры
+
 // sampleTeachersFor возвращает 3 преподавателя с разными ФИО
 func sampleTeachersFor(depName string, depID uint, depIndex int) []Teacher {
 	firstNames := []string{"Иван", "Пётр", "Анна", "Екатерина", "Сергей", "Мария", "Дмитрий", "Ольга", "Алексей", "Наталья"}
@@ -176,7 +176,7 @@ func sampleTeachersFor(depName string, depID uint, depIndex int) []Teacher {
 
 	makeT := func(i int, subj, days, room string) Teacher {
 		fn := pick(firstNames, depIndex+i)
-		ln := pick(lastNames, depIndex*2+i) // другое смещение → меньше повторов
+		ln := pick(lastNames, depIndex*2+i)
 		mn := pick(middles, depIndex+i/2)
 		full := fmt.Sprintf("%s %s %s", ln, fn, mn)
 

@@ -145,7 +145,7 @@ func deanShowSchedule(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUp
 	} else {
 		msg.SetUser(upd.Message.Sender.UserId)
 	}
-	msg.SetText(text).AddKeyboard(deanScheduleKB(sc)) // ← добавили кнопки тут
+	msg.SetText(text).AddKeyboard(deanScheduleKB(sc))
 	_, err = sc.API.Messages.Send(ctx, msg)
 	return err
 }

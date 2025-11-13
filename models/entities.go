@@ -2,13 +2,11 @@ package models
 
 import "gorm.io/gorm"
 
-// Институт
 type Institute struct {
 	ID   uint   `gorm:"primaryKey"`
 	Name string `gorm:"uniqueIndex;not null"`
 }
 
-// Факультет N-1 Институт
 type Faculty struct {
 	ID          uint   `gorm:"primaryKey"`
 	Name        string `gorm:"uniqueIndex;not null"`
@@ -16,7 +14,6 @@ type Faculty struct {
 	Institute   Institute `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 }
 
-// Кафедра N-1 Факультет
 type Department struct {
 	ID        uint   `gorm:"primaryKey"`
 	Name      string `gorm:"uniqueIndex;not null"`
@@ -24,10 +21,9 @@ type Department struct {
 	Faculty   Faculty `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 }
 
-// Преподаватель N-1 Кафедра
 type Teacher struct {
 	ID           uint   `gorm:"primaryKey"`
-	FullName     string `gorm:"index;not null"` // ФИО
+	FullName     string `gorm:"index;not null"`
 	Email        string `gorm:"index"`
 	Subject      string `gorm:"index"` // предмет (опционально)
 	DepartmentID uint

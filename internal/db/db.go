@@ -14,7 +14,7 @@ import (
 func Connect() *gorm.DB {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		host := getenv("POSTGRES_HOST", "localhost") // в docker-compose это может быть "db"
+		host := getenv("POSTGRES_HOST", "localhost")
 		port := getenv("POSTGRES_PORT", "5433")
 		user := getenv("POSTGRES_USER", "app")
 		pass := getenv("POSTGRES_PASSWORD", "app")
