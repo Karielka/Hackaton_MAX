@@ -23,6 +23,9 @@ import (
 
 func main() {
 	// Логи
+
+	//	_ = godotenv.Load()
+
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true}).With().Timestamp().Caller().Logger()
 

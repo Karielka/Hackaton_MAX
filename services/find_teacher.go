@@ -146,7 +146,8 @@ func FT_OnMessage(ctx context.Context, sc Ctx, upd *schemes.MessageCreatedUpdate
 		return true, ftReplyMsg(ctx, sc, upd, fmt.Sprintf("Ошибка поиска: %v", err))
 	}
 	if len(res) == 0 {
-		_ = ftReplyMsg(ctx, sc, upd, "Совпадений не найдено. Попробуйте иначе.")
+		_ = ftReplyMsgWithKeyboard(ctx, sc, upd, "Совпадений не найдено. Попробуйте иначе.")
+		ftClear(peer)
 		return true, nil
 	}
 
