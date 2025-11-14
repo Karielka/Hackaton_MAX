@@ -14,31 +14,16 @@ git clone https://github.com/Karielka/Hackaton_MAX.git
 cd Hackaton_MAX
 ```
 
-### Для запуска локально:
-
-1. Установить зависимости Go
-```sh
-go mod download
-```
-2. Запустить базу данных через Docker Compose
-```sh
-docker compose up -d
-```
-3. Убедиться, что контейнеры поднялись
-```sh
-docker ps
-```
-4. Запустить Go-приложение локально
-
-```sh
-go run main.go
-```
-
-### Для запуска полностью в контейнерах
+### Для запуска 
 
 1. Сбилдить и запустить контейнеры
 ```sh
 docker compose up --build
+```
+
+либо при повторных запусках: 
+```sh
+docker compose up 
 ```
 
 # Описание проекта
