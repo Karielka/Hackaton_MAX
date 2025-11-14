@@ -11,6 +11,7 @@ import (
 	"github.com/max-messenger/max-bot-api-client-go/configservice"
 	"github.com/max-messenger/max-bot-api-client-go/schemes"
 
+	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -25,6 +26,18 @@ func main() {
 	// Логи
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true}).With().Timestamp().Caller().Logger()
+
+	// .env нужен при локальной разработке, в проде переменные уже в окружении
+	if err := godotenv.Load(".env"); err != nil {
+		log.Warn().Err(err).Msg("godotenv: skip loading .env")
+	}
+	token := os.Getenv("TOKEN_MAX")
+	if token == "" {
+		log.Fatal().Msg("env TOKEN_MAX is empty")
+	}
+	if err := os.Setenv("TOKEN", token); err != nil {
+		log.Fatal().Err(err).Msg("failed to set TOKEN env")
+	}
 
 	// 1) MAX: читаем конфиг и создаём клиента
 	configPath := "./config/config.yaml"
