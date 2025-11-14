@@ -14,16 +14,17 @@ import (
 func Connect() *gorm.DB {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		host := getenv("POSTGRES_HOST", "localhost")
+		// Для Docker Compose используем 'db' как хост по умолчанию
+		host := getenv("POSTGRES_HOST", "db")
 		port := getenv("POSTGRES_PORT", "5433")
 		user := getenv("POSTGRES_USER", "app")
 		pass := getenv("POSTGRES_PASSWORD", "app")
 		name := getenv("POSTGRES_DB", "app")
-		ssl  := getenv("POSTGRES_SSLMODE", "disable")
+		ssl := getenv("POSTGRES_SSLMODE", "disable")
 
 		dsn = fmt.Sprintf(
-			"postgres://%s:%s@%s:%s/%s?sslmode=%s",
-			user, pass, host, port, name, ssl,
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+			host, user, pass, name, port, ssl,
 		)
 	}
 
